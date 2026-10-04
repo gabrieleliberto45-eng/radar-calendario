@@ -1,0 +1,42 @@
+name: Calendario
+
+# Ogni ora (al minuto 17) scarica il calendario della settimana da ForexFactory
+# e lo salva in calendario.json, che il bot Radar XAU legge al posto di ForexFactory.
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  scarica:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scarica il calendario
+        run: |
+          if curl -sfL -A "Mozilla/5.0 (radar-calendario)" \
+               https://nfs.faireconomy.media/ff_calendar_thisweek.json -o nuovo.json \
+             && python3 -c "import json; d = json.load(open('nuovo.json')); assert isinstance(d, list) and d"; then
+            mv nuovo.json calendario.json
+            echo "Calendario scaricato"
+          else
+            # ForexFactory non ha risposto: si riprova all'ora successiva, senza segnare errore
+            rm -f nuovo.json
+            echo "ForexFactory non disponibile, riprovo tra un'ora"
+          fi
+
+      - name: Salva se è cambiato
+        run: |
+          git config user.name "radar-calendario"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Nessuna novità"
+          else
+            git commit -m "Calendario aggiornato"
+            git push
+          fi
